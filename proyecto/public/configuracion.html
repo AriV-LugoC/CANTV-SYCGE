@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Configuración - SYCGE CANTV</title>
+    <link rel="stylesheet" href="css/index.css">
+    <link rel="stylesheet" href="css/configuracion.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="sidebar"> 
+    <div class="sidebar-header">
+        <span class="sidebar-title">MENÚ</span>
+        <button id="toggle-sidebar" class="sidebar-toggle">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+    </div>
+    <ul class="sidebar-list">
+        <li onclick="location.href='index.html'"><i class="fa-solid fa-house"></i> <span class="sidebar-text">INICIO</span></li>
+        <li onclick="location.href='reportes.html'"><i class="fa-solid fa-file-alt"></i> <span class="sidebar-text">REPORTES</span></li>
+        <li onclick="location.href='acuerdos.html'"><i class="fa-solid fa-list-check"></i> <span class="sidebar-text">LISTADO DE ACUERDOS</span></li>
+    </ul>
+    <div class="sidebar-bottom">
+        <ul>
+            <li onclick="location.href='configuracion.html'"><i class="fa-solid fa-gear"></i> <span class="sidebar-text">CONFIGURACIÓN</span></li>
+            <li onclick="cerrarSesion()"><i class="fa-solid fa-right-from-bracket"></i> <span class="sidebar-text">SALIR</span></li>
+        </ul>
+    </div>
+</div>
+    <div class="main-content">
+        <div class="configuracion-container">
+            <h2>Configuración de Usuario</h2>
+            <!-- Solo el fragmento relevante del formulario -->
+            <form id="form-configuracion" enctype="multipart/form-data">
+                <div class="foto-perfil">
+                    <img id="preview-foto" src="img/default-user.png" alt="Foto de perfil">
+                    <input type="file" id="foto" name="foto" accept="image/*">
+                    <button type="button" id="btn-guardar-foto">Guardar foto</button>
+                    <div id="mensaje-foto" style="color: #2e7d32; margin-top: 8px;"></div>
+                </div>
+                <label for="nombre">Nombre</label>
+                <input type="text" id="nombre" name="nombre" required>
+
+                <label for="contrasena-actual">Contraseña actual</label>
+                <input type="password" id="contrasena-actual" name="contrasena-actual" required>
+
+                <label for="nueva-contrasena">Nueva contraseña</label>
+                <input type="password" id="nueva-contrasena" name="nueva-contrasena">
+
+                <button type="submit">Guardar cambios</button>
+            </form>
+        </div>
+    </div>
+    <script src="js/configuracion.js"></script>
+    <script src="js/sidebar.js"></script>
+</body>
+</html>
