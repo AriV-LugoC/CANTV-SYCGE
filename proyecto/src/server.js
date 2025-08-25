@@ -16,8 +16,26 @@ app.use(express.json());
 app.use(express.static('public'));
 
 const multer = require('multer');
-const upload = multer();
-app.use(upload.none());
+const upload = multer({ dest: 'uploads/' }); // O como lo tengas configurado
+
+app.post('/api/acuerdos/:id/archivo', upload.single('archivo'), authMiddleware, async (req, res) => {
+    const id = req.params.id;
+    if (!req.file) {
+        return res.status(400).json({ error: 'No se recibió ningún archivo' });
+    }
+    // Guarda la ruta del archivo en el acuerdo
+    const rutaArchivo = `/uploads/${req.file.filename}`;
+    try {
+        const acuerdo = await Acuerdo.findById(id);
+        if (!acuerdo) return res.status(404).json({ error: 'Acuerdo no encontrado' });
+        if (!acuerdo.archivos) acuerdo.archivos = [];
+        acuerdo.archivos.push(rutaArchivo);
+        await acuerdo.save();
+        res.json({ ok: true, archivo: rutaArchivo });
+    } catch (err) {
+        res.status(500).json({ error: 'Error al guardar el archivo' });
+    }
+});
 
 
 // Conexión a MongoDB Atlas
@@ -208,18 +226,18 @@ app.get('/api/acuerdos/:id', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/acuerdos', authMiddleware, async (req, res) => {
-    const cargoUsuario = req.usuario.cargo; // Ajusta según cómo guardas el usuario en el token
+    const cargoUsuario = req.usuario.cargo;
     if (cargoUsuario !== 'Gerente General') {
         return res.status(403).json({ error: 'No tienes permisos para crear acuerdos.' });
     }
     const data = req.body;
 
-    if (!data.identificativo || !data.fecha_comite || !data.tipo_comite || !data.autoridad || !data.punto_agenda || !data.acuerdos || !data.vicepresidencia || !data.unidad_responsable || !data.unidad_seguimiento) {
-        return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+    // Valida solo los campos realmente obligatorios (quita punto_agenda)
+    if (!data.identificativo || !data.fecha_comite || !data.tipo_comite || !data.autoridad || !data.acuerdos || !data.vicepresidencia || !data.unidad_responsable || !data.unidad_seguimiento) {
+        return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
     try {
-        // Extraer mes y año (últimos 2 dígitos) de fecha_comite
         let fecha_id = '';
         const partes = data.fecha_comite.split('/');
         if (partes.length === 3) {
@@ -228,14 +246,19 @@ app.post('/api/acuerdos', authMiddleware, async (req, res) => {
             fecha_id = data.fecha_comite;
         }
 
-        // Buscar el correlativo actual para ese identificativo y fecha_comite
         const count = await Acuerdo.countDocuments({ identificativo: data.identificativo, fecha_comite: data.fecha_comite });
         const correlativo = count + 1;
         const correlativoStr = correlativo < 10 ? `0${correlativo}` : `${correlativo}`;
         const id_visible = `${data.identificativo} ${fecha_id}-1.${correlativoStr}`;
 
-        // Insertar el nuevo acuerdo
-        const nuevoAcuerdo = new Acuerdo({ ...data, id_visible, correlativo, estado: "Sin progreso" });
+        // Si punto_agenda no viene, lo pone vacío
+        const nuevoAcuerdo = new Acuerdo({ 
+            ...data, 
+            punto_agenda: data.punto_agenda || '', 
+            id_visible, 
+            correlativo, 
+            estado: "Sin progreso" 
+        });
         await nuevoAcuerdo.save();
         res.status(201).json(nuevoAcuerdo);
     } catch (error) {
@@ -245,55 +268,53 @@ app.post('/api/acuerdos', authMiddleware, async (req, res) => {
 
 app.put('/api/acuerdos/:id', authMiddleware, async (req, res) => {
     const id = req.params.id;
-    const {
-        identificativo,
-        fecha_comite,
-        tipo_comite,
-        autoridad,
-        punto_agenda,
-        acuerdos,
-        vicepresidencia,
-        unidad_responsable,
-        unidad_seguimiento,
-        estado
-    } = req.body;
+    const data = req.body;
 
-    if (!identificativo || !fecha_comite || !tipo_comite || !autoridad || !punto_agenda || !acuerdos || !vicepresidencia || !unidad_responsable || !unidad_seguimiento) {
-        return res.status(400).json({ error: 'Todos los campos son obligatorios' });
+    // Solo actualiza los campos que llegan en el body
+    const camposPermitidos = [
+        'identificativo',
+        'fecha_comite',
+        'tipo_comite',
+        'autoridad',
+        'punto_agenda',
+        'acuerdos',
+        'vicepresidencia',
+        'unidad_responsable',
+        'unidad_seguimiento',
+        'estado'
+    ];
+    const update = {};
+    camposPermitidos.forEach(campo => {
+        if (data[campo] !== undefined && data[campo] !== '') {
+            update[campo] = data[campo];
+        }
+    });
+
+    // Si se actualiza identificativo o fecha_comite, recalcula id_visible
+    if (update.identificativo && update.fecha_comite) {
+        let fecha_id = '';
+        const partes = update.fecha_comite.split('/');
+        if (partes.length === 3) {
+            fecha_id = `${partes[1]}/${partes[2].slice(-2)}`; // MM/AA
+        } else {
+            fecha_id = update.fecha_comite;
+        }
+        // Busca el correlativo actual para ese identificativo y fecha_comite
+        const count = await Acuerdo.countDocuments({ identificativo: update.identificativo, fecha_comite: update.fecha_comite });
+        const correlativo = count + 1;
+        const correlativoStr = correlativo < 10 ? `0${correlativo}` : `${correlativo}`;
+        update.id_visible = `${update.identificativo} ${fecha_id}-1.${correlativoStr}`;
+        update.correlativo = correlativo;
     }
 
-    // Extraer mes y año (últimos 2 dígitos) de fecha_comite para id_visible
-    let fecha_id = '';
-    const partes = fecha_comite.split('/');
-    if (partes.length === 3) {
-        fecha_id = `${partes[1]}/${partes[2].slice(-2)}`; // MM/AA
-    } else {
-        fecha_id = fecha_comite;
+    if (Object.keys(update).length === 0) {
+        return res.status(400).json({ error: 'No se envió ningún campo para actualizar' });
     }
-
-    // Buscar el correlativo actual para ese identificativo y fecha_comite
-    const count = await Acuerdo.countDocuments({ identificativo, fecha_comite });
-    const correlativo = count + 1;
-    const correlativoStr = correlativo < 10 ? `0${correlativo}` : `${correlativo}`;
-    const id_visible = `${identificativo} ${fecha_id}-1.${correlativoStr}`;
 
     try {
         const acuerdoActualizado = await Acuerdo.findByIdAndUpdate(
             id,
-            {
-                id_visible,
-                identificativo,
-                fecha_comite,
-                tipo_comite,
-                autoridad,
-                punto_agenda,
-                acuerdos,
-                vicepresidencia,
-                unidad_responsable,
-                unidad_seguimiento,
-                correlativo,
-                estado
-            },
+            update,
             { new: true }
         );
         res.json(acuerdoActualizado);

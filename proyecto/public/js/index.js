@@ -14,41 +14,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nombreUsuario = localStorage.getItem('nombre');
     document.getElementById('nombre-usuario').textContent = nombreUsuario || '';
 
-
-    // Obtener token y departamento
+    // Obtener y mostrar cantidad de acuerdos, reportes y culminados
     const token = localStorage.getItem('token');
     const departamentoUsuario = localStorage.getItem('departamento');
+    if (token && departamentoUsuario) {
+        try {
+            const res = await fetch('/api/acuerdos', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const acuerdos = await res.json();
 
-    // Mostrar cantidad total de acuerdos
-    let totalAcuerdos = 0;
-    let totalReportes = 0;
-    let totalComentarios = 0; // Si tienes comentarios, agrega la lógica aquí
+            // Acuerdos: todos los no culminados (sin filtrar por departamento)
+            const acuerdosNoCulminados = acuerdos.filter(a => a.estado !== '100%');
+            document.getElementById('num-acuerdos').textContent = acuerdosNoCulminados.length;
 
-    try {
-        // Consulta todos los acuerdos
-        const resAcuerdos = await fetch('/api/acuerdos', {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
-        const acuerdos = await resAcuerdos.json();
-        totalAcuerdos = acuerdos.length;
+            // Reportes: solo los del departamento y no culminados
+            const reportesDepto = acuerdos.filter(a =>
+                a.unidad_responsable &&
+                a.unidad_responsable.trim().toLowerCase() === departamentoUsuario.trim().toLowerCase() &&
+                a.estado !== '100%'
+            );
+            document.getElementById('num-reportes').textContent = reportesDepto.length;
 
-        // Filtra los acuerdos por departamento para los reportes
-        totalReportes = acuerdos.filter(a => a.unidad_responsable === departamentoUsuario).length;
-
-        // Si tienes comentarios, consulta y cuenta aquí
-        // Ejemplo:
-        // const resComentarios = await fetch('/api/comentarios', { headers: { 'Authorization': 'Bearer ' + token } });
-        // const comentarios = await resComentarios.json();
-        // totalComentarios = comentarios.length;
-
-    } catch (err) {
-        console.error('Error al cargar datos:', err);
+            // Culminados: solo los del departamento y culminados
+            const culminados = acuerdos.filter(a =>
+                a.unidad_responsable &&
+                a.unidad_responsable.trim().toLowerCase() === departamentoUsuario.trim().toLowerCase() &&
+                a.estado === '100%'
+            );
+            document.getElementById('num-culminados').textContent = culminados.length;
+        } catch {
+            document.getElementById('num-acuerdos').textContent = '0';
+            document.getElementById('num-culminados').textContent = '0';
+            document.getElementById('num-reportes').textContent = '0';
+        }
     }
-
-    // Actualiza los números en las tarjetas
-    document.querySelector('.card-acuerdos .card-num').textContent = totalAcuerdos;
-    document.querySelector('.card-reportes .card-num').textContent = totalReportes;
-    document.querySelector('.card-comentarios .card-num').textContent = totalComentarios;
 });
 
 document.addEventListener('DOMContentLoaded', () => {

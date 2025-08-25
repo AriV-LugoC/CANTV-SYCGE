@@ -84,12 +84,14 @@ async function cargarAcuerdos() {
                 'Authorization': 'Bearer ' + token
             }
         });
-        const acuerdos = await res.json();
+        let acuerdos = await res.json();
+        // Filtra los acuerdos que NO están culminados
+        acuerdos = acuerdos.filter(a => a.estado !== '100%');
         if (!acuerdos || acuerdos.length === 0) {
             tbody.innerHTML = '<tr><td colspan="10">No hay acuerdos registrados.</td></tr>';
             return;
         }
-        renderTablaAcuerdos(acuerdos); // Usa solo el render limpio
+        renderTablaAcuerdos(acuerdos);
         window.acuerdos = acuerdos;
     } catch {
         tbody.innerHTML = '<tr><td colspan="10">Error al cargar acuerdos.</td></tr>';
@@ -124,37 +126,17 @@ async function abrirModalEditarAcuerdo(id) {
     acuerdoEditandoId = id;
     document.getElementById('modal-editar-total').style.display = 'flex';
 
-    const token = localStorage.getItem('token');
-    const res = await fetch(`/api/acuerdos/${id}`, {
-        headers: { 'Authorization': 'Bearer ' + token }
-    });
-    const acuerdo = await res.json();
-
-    // Cargar los datos en el formulario
-    document.getElementById('identificativo-total').value = acuerdo.identificativo || '';
-    document.getElementById('fecha-comite-total').value = acuerdo.fecha_comite ? acuerdo.fecha_comite.split('T')[0] : '';
-    document.getElementById('tipo-comite-total').value = acuerdo.tipo_comite || '';
-    document.getElementById('vicepresidencia-total').value = acuerdo.vicepresidencia || '';
-    document.getElementById('autoridad-total').value = acuerdo.autoridad || '';
-    document.getElementById('unidad-seguimiento-total').value = acuerdo.unidad_seguimiento || '';
-    document.getElementById('unidad-responsable-total').value = acuerdo.unidad_responsable || '';
-    document.getElementById('estado-total').value = acuerdo.estado || '';
-    document.getElementById('punto-agenda-total').value = acuerdo.punto_agenda || '';
-    document.getElementById('acuerdos-total').value = acuerdo.acuerdos || '';
-
-    // Guarda los datos originales para comparar luego
-    datosOriginalesEdicion = {
-        identificativo: acuerdo.identificativo || '',
-        fecha_comite: acuerdo.fecha_comite ? acuerdo.fecha_comite.split('T')[0] : '',
-        tipo_comite: acuerdo.tipo_comite || '',
-        vicepresidencia: acuerdo.vicepresidencia || '',
-        autoridad: acuerdo.autoridad || '',
-        unidad_seguimiento: acuerdo.unidad_seguimiento || '',
-        unidad_responsable: acuerdo.unidad_responsable || '',
-        estado: acuerdo.estado || '',
-        punto_agenda: acuerdo.punto_agenda || '',
-        acuerdos: acuerdo.acuerdos || ''
-    };
+    // Deja todos los campos vacíos
+    document.getElementById('identificativo-total').value = '';
+    document.getElementById('fecha-comite-total').value = '';
+    document.getElementById('tipo-comite-total').value = '';
+    document.getElementById('vicepresidencia-total').value = '';
+    document.getElementById('autoridad-total').value = '';
+    document.getElementById('unidad-seguimiento-total').value = '';
+    document.getElementById('unidad-responsable-total').value = '';
+    document.getElementById('estado-total').value = '';
+    document.getElementById('punto-agenda-total').value = '';
+    document.getElementById('acuerdos-total').value = '';
 }
 // Cerrar modal de edición total
 function cerrarModalEditarTotal() {
@@ -189,42 +171,35 @@ document.getElementById('form-editar-total').addEventListener('submit', async fu
         return;
     }
 
-    // Obtener los datos actuales del formulario
-    const datos = {
-        identificativo: document.getElementById('identificativo-total').value,
-        fecha_comite: document.getElementById('fecha-comite-total').value,
-        tipo_comite: document.getElementById('tipo-comite-total').value,
-        vicepresidencia: document.getElementById('vicepresidencia-total').value,
-        autoridad: document.getElementById('autoridad-total').value,
-        unidad_seguimiento: document.getElementById('unidad-seguimiento-total').value,
-        unidad_responsable: document.getElementById('unidad-responsable-total').value,
-        estado: document.getElementById('estado-total').value,
-        punto_agenda: document.getElementById('punto-agenda-total').value,
-        acuerdos: document.getElementById('acuerdos-total').value
-    };
-
-    // Validación básica
-    for (const key in datos) {
-        if (!datos[key]) {
-            mostrarNotificacion('Todos los campos son obligatorios', 'error');
-            return;
+    // Solo toma los campos que el usuario llenó
+    const datos = {};
+    const campos = [
+        'identificativo-total',
+        'fecha-comite-total',
+        'tipo-comite-total',
+        'vicepresidencia-total',
+        'autoridad-total',
+        'unidad-seguimiento-total',
+        'unidad-responsable-total',
+        'estado-total',
+        'punto-agenda-total',
+        'acuerdos-total'
+    ];
+    campos.forEach(id => {
+        const valor = document.getElementById(id).value;
+        if (valor) {
+            // Elimina el sufijo "-total" para el nombre del campo
+            const nombreCampo = id.replace('-total', '').replace('-', '_');
+            datos[nombreCampo] = valor;
         }
-    }
+    });
 
-    // Comparar con los datos originales
-    let hayCambios = false;
-    for (const key in datos) {
-        if (datos[key] !== datosOriginalesEdicion[key]) {
-            hayCambios = true;
-            break;
-        }
-    }
-    if (!hayCambios) {
+    if (Object.keys(datos).length === 0) {
         mostrarNotificacion('No se ha modificado ningún campo', 'error');
         return;
     }
 
-    // Enviar los datos al backend
+    // Enviar solo los campos modificados
     const res = await fetch(`/api/acuerdos/${acuerdoEditandoId}`, {
         method: 'PUT',
         headers: {
